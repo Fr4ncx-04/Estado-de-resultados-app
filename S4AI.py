@@ -138,43 +138,162 @@ asiento_apertura = generar_asiento_contable(
 def modulo_transacciones_mejorado():
     with st.expander("Registrar Transacción", expanded=True):
         fecha = st.date_input("Fecha")
-        tipo_transaccion = st.selectbox("Tipo de Transacción", [
-            "Apertura de Cuentas",
-            "Compra de Mercancía",
-            "Venta de Mercancía",
-            "Traspaso entre Cuentas"
+        tipo = st.selectbox("Tipo de Transacción", [
+            "Apertura de Cuentas",          # 1
+            "Compra de Mercancía",          # 2
+            "Descuento Pronto Pago Compras",# 3
+            "Venta al Contado",             # 4
+            "Descuento Pronto Pago Ventas", # 5
+            "Devolución de Compras",        # 6
+            "Devolución de Ventas",         # 7
+            "Rebajas en Compras",           # 8
+            "Rebajas en Ventas",            # 9
+            "Pago Gastos Generales"         # 10
         ])
         
-        if tipo_transaccion == "Apertura de Cuentas":
-            col1, col2 = st.columns(2)
-            with col1:
-                caja = st.number_input("Monto en Caja", min_value=0.0)
-            with col2:
-                bancos = st.number_input("Monto en Bancos", min_value=0.0)
-            
-            if st.button("Registrar Apertura"):
+        if tipo == "Apertura de Cuentas":
+            caja   = st.number_input("Monto en Caja", min_value=0.0)
+            bancos = st.number_input("Monto en Bancos", min_value=0.0)
+            if st.button("Registrar"):
+                total = caja + bancos
                 asiento = generar_asiento_contable(
                     fecha=fecha.strftime("%d/%m/%Y"),
                     concepto="Apertura de cuentas",
-                    cuentas_debe=[('Caja', caja), ('Bancos', bancos)],
-                    cuentas_haber=[]
+                    cuentas_debe=[("Caja", caja), ("Bancos", bancos)],
+                    cuentas_haber=[("Capital Social", total)]
                 )
                 st.session_state.transacciones.append(asiento)
-        
-        elif tipo_transaccion == "Compra de Mercancía":
-            monto = st.number_input("Monto Total Bancos", min_value=0.0)
-            if monto > 0:
+
+        elif tipo == "Compra de Mercancía":
+            compras = st.number_input("Monto Compras", min_value=0.0)
+            if st.button("Registrar"):
+                neto = compras
+                iva  = neto * 0.16
+                total = neto + iva
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Compra de mercancía",
+                    cuentas_debe=[("Compras", neto), ("IVA Acreditable", iva)],
+                    cuentas_haber=[("Bancos", total)]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Descuento Pronto Pago Compras":
+            recibido = st.number_input("Monto Bancos (10% Pronto Pago)", min_value=0.0)
+            if st.button("Registrar"):
+                # recibido = total que nos devuelve el proveedor
+                neto = recibido / 1.16
+                iva  = neto * 0.16
+                # descuentos = 10% de la base original ≈ neto. Ajusta fórmula si varía.
+                descuento = recibido
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Descuento Pronto Pago Compras 10%",
+                    cuentas_debe=[("Bancos", recibido)],
+                    cuentas_haber=[("Descuentos s/compras", neto), ("IVA Acreditable", iva)]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Venta al Contado":
+            recibido = st.number_input("Monto Bancos", min_value=0.0)
+            if st.button("Registrar"):
+                neto = recibido / 1.16
+                iva  = neto * 0.16
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Venta de mercancía al contado",
+                    cuentas_debe=[("Bancos", recibido)],
+                    cuentas_haber=[("Ventas", neto), ("IVA Trasladado", iva)]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Descuento Pronto Pago Ventas":
+            descuento = st.number_input("Monto Descuento (Excluyendo IVA)", min_value=0.0)
+            if st.button("Registrar"):
+                iva = descuento * 0.16
+                total = descuento + iva
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Descuento Pronto Pago Ventas",
+                    cuentas_debe=[("Descuentos s/ventas", descuento), ("IVA Trasladado", iva)],
+                    cuentas_haber=[("Bancos", total)]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Devolución de Compras":
+            monto = st.number_input("Monto Bancos Devolución", min_value=0.0)
+            if st.button("Registrar"):
                 neto = monto / 1.16
-                iva = neto * 0.16
-                
-                if st.button("Registrar Compra"):
-                    asiento = generar_asiento_contable(
-                        fecha=fecha.strftime("%d/%m/%Y"),
-                        concepto="Compra de mercancía",
-                        cuentas_debe=[('Compras', neto), ('IVA Acreditable', iva)],
-                        cuentas_haber=[('Bancos', monto)]
-                    )
-                    st.session_state.transacciones.append(asiento)
+                iva  = neto * 0.16
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Devolución de compras",
+                    cuentas_debe=[
+                        ("Bancos", monto),
+                    ],
+                    cuentas_haber=[
+                        ("Devoluciones s/compras", neto),
+                        ("IVA Acreditable", iva)
+                    ]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Devolución de Ventas":
+            monto = st.number_input("Monto Bancos Devolución", min_value=0.0)
+            if st.button("Registrar"):
+                neto = monto / 1.16
+                iva  = neto * 0.16
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Devolución de ventas",
+                    cuentas_debe=[("Devoluciones s/ventas", neto), ("IVA Trasladado", iva)],
+                    cuentas_haber=[("Bancos", monto)]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Rebajas en Compras":
+            monto = st.number_input("Monto Rebaja (bancos)", min_value=0.0)
+            if st.button("Registrar"):
+                neto = monto / 1.16
+                iva  = neto * 0.16
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Rebajas en compras",
+                    cuentas_debe=[
+                        ("Bancos", monto),
+                    ],
+                    cuentas_haber=[
+                        ("Rebajas s/compras", neto),
+                        ("IVA Acreditable", iva)
+                    ]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Rebajas en Ventas":
+            monto = st.number_input("Monto Rebaja (bancos)", min_value=0.0)
+            if st.button("Registrar"):
+                neto = monto / 1.16
+                iva  = neto * 0.16
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Rebajas en ventas",
+                    cuentas_debe=[("Rebajas s/ventas", neto), ("IVA Trasladado", iva)],
+                    cuentas_haber=[("Bancos", monto)]
+                )
+                st.session_state.transacciones.append(asiento)
+
+        elif tipo == "Pago Gastos Generales":
+            pago = st.number_input("Monto Gastos (bancos)", min_value=0.0)
+            if st.button("Registrar"):
+                neto = pago / 1.16
+                iva  = neto * 0.16
+                asiento = generar_asiento_contable(
+                    fecha=fecha.strftime("%d/%m/%Y"),
+                    concepto="Pago Gastos Generales",
+                    cuentas_debe=[("Gastos Generales", neto), ("IVA Acreditable", iva)],
+                    cuentas_haber=[("Bancos", pago)]
+                )
+                st.session_state.transacciones.append(asiento)
 
 def registrar_compra(fecha, monto_total):
     neto = monto_total / 1.16
@@ -196,80 +315,141 @@ def registrar_compra(fecha, monto_total):
 transaccion_compra = registrar_compra("10/04/2025", 2320.00)
 
 # Visualización del libro diario con formato específico
-def mostrar_libro_diario():
-    st.markdown("""
-    <style>
-        .libro-diario-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        .libro-diario-table th, .libro-diario-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .libro-diario-table tr:nth-child(even) {
-            background-color: #f2f2f2;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    html = """
-    <table class="libro-diario-table">
-        <tr>
-            <th>Fecha</th>
-            <th>Cuentas</th>
-            <th>Debe</th>
-            <th>Haber</th>
-            <th>Concepto</th>
-        </tr>
-    """
-    
-    for trans in st.session_state.transacciones:
-        cuentas = trans['Cuentas'].split('\n')
-        debe = trans['Debe'].split('\n')
-        haber = trans['Haber'].split('\n')
-        concepto = trans['Concepto']
-        
-        for i in range(len(cuentas)):
-            html += f"""
-            <tr>
-                <td>{trans['Fecha'] if i == 0 else ''}</td>
-                <td>{cuentas[i]}</td>
-                <td>{debe[i]}</td>
-                <td>{haber[i]}</td>
-                <td>{concepto if i == 0 else ''}</td>
-            </tr>
-            """
-    
-    html += "</table>"
-    st.markdown(html, unsafe_allow_html=True)
-    
-    # Cálculo de totales
-    total_debe = sum(float(d.replace(",", "")) for trans in st.session_state.transacciones for d in trans['Debe'].split('\n'))
-    total_haber = sum(float(h.replace(",", "")) for trans in st.session_state.transacciones for h in trans['Haber'].split('\n'))
-    
-    st.markdown(f"**Total Debe:** ${total_debe:,.2f}  \n**Total Haber:** ${total_haber:,.2f}")
-    if total_debe != total_haber:
-        st.error(f"Desbalance detectado: ${abs(total_debe - total_haber):,.2f}")
+def mostrar_libro_diario_mejorado():
+    # 1) Armamos la lista de filas
+    filas = []
+    total_debe = 0.0
+    total_haber = 0.0
 
-# Process journal entries to accounts (mayor)
-def procesar_mayor():
-    mayor = {}
     for trans in st.session_state.transacciones:
-        cuentas = trans['Cuentas'].split('\n')
-        debe = [float(d.replace(",", "")) for d in trans['Debe'].split('\n')]
-        haber = [float(h.replace(",", "")) for h in trans['Haber'].split('\n')]
+        fecha = trans.get('Fecha', '')
+        # trans['Cuentas'], trans['Debe'] y trans['Haber'] son strings con saltos de línea
+        cuentas = trans.get('Cuentas', '').split('\n')
+        debe   = trans.get('Debe',   '').split('\n')
+        haber  = trans.get('Haber',  '').split('\n')
+
+        for cuenta, d_str, h_str in zip(cuentas, debe, haber):
+            # Convertimos a float (quitando comas)
+            try:
+                d = float(d_str.replace(",", "")) if d_str else 0.0
+            except:
+                d = 0.0
+            try:
+                h = float(h_str.replace(",", "")) if h_str else 0.0
+            except:
+                h = 0.0
+
+            filas.append({
+                'Fecha': fecha,
+                'Cuenta': cuenta,
+                'Debe': d,
+                'Haber': h
+            })
+
+            total_debe  += d
+            total_haber += h
+
+    # 2) Creamos el DataFrame
+    if filas:
+        diario_df = pd.DataFrame(filas)
+        st.dataframe(diario_df, use_container_width=True, hide_index=True)
+    else:
+        st.warning("No hay transacciones para mostrar en el Diario")
+        return
+
+    # 3) Mostramos métricas de totales
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Debe",  f"${total_debe:,.2f}")
+    with col2:
+        st.metric("Total Haber", f"${total_haber:,.2f}")
+
+    # 4) Balance
+    if abs(total_debe - total_haber) < 0.01:
+        st.success("✅ Libro balanceado")
+    else:
+        st.error(f"❌ Desbalance: ${abs(total_debe - total_haber):,.2f}")
         
-        for i, cuenta in enumerate(cuentas):
-            if cuenta not in mayor:
-                mayor[cuenta] = {'debe': 0.0, 'haber': 0.0}
-            
-            mayor[cuenta]['debe'] += debe[i]
-            mayor[cuenta]['haber'] += haber[i]
+def obtener_df_diario():
+    """Construye un DataFrame con columnas [Fecha, Cuenta, Debe, Haber] idéntico
+        al que se muestra en pantalla."""
+    filas = []
+    for trans in st.session_state.transacciones:
+        fecha   = trans.get('Fecha', '')
+        cuentas = trans.get('Cuentas',   '').split('\n')
+        debe    = trans.get('Debe',      '').split('\n')
+        haber   = trans.get('Haber',     '').split('\n')
+        for c, d_str, h_str in zip(cuentas, debe, haber):
+            try:
+                d = float(d_str.replace(",", "")) if d_str else 0.0
+            except:
+                d = 0.0
+            try:
+                h = float(h_str.replace(",", "")) if h_str else 0.0
+            except:
+                h = 0.0
+            filas.append({
+                "Fecha":  fecha,
+                "Cuenta": c,
+                "Debe":   d,
+                "Haber":  h
+            })
+    return pd.DataFrame(filas)
+
+
+def procesar_mayor_mejorado():
+    """Agrupa el DataFrame diario por cuenta y devuelve un dict con saldos."""
+    df = obtener_df_diario()
+    if df.empty:
+        return {}
+
+    # Agrupamos sumas de Debe/Haber por Cuenta
+    grp = df.groupby("Cuenta")[["Debe", "Haber"]].sum().reset_index()
     
+    # Construyo un dict {cuenta: {debe: x, haber: y}}
+    mayor = {
+        row["Cuenta"]: {"debe": row["Debe"], "haber": row["Haber"]}
+        for _, row in grp.iterrows()
+    }
     return mayor
+
+
+def mostrar_mayor_y_balanza():
+    mayor = procesar_mayor_mejorado()
+    if not mayor:
+        st.warning("No hay datos para Libro Mayor")
+        return
+
+    # Construyo la tabla del Mayor
+    mayor_rows = []
+    for cuenta, sal in mayor.items():
+        mayor_rows.append({
+            "Cuenta": cuenta,
+            "Total Debe":   sal["debe"],
+            "Total Haber":  sal["haber"],
+            "Saldo Deudor": max(sal["debe"] - sal["haber"], 0),
+            "Saldo Acreedor": max(sal["haber"] - sal["debe"], 0)
+        })
+    mayor_df = pd.DataFrame(mayor_rows)
+    st.markdown("### Libro Mayor")
+    st.dataframe(mayor_df, use_container_width=True, hide_index=True)
+
+    # Genero la balanza de comprobación
+    balanza = mayor_df[["Cuenta", "Saldo Deudor", "Saldo Acreedor"]]
+    total_deudor  = balanza["Saldo Deudor"].sum()
+    total_acreedor= balanza["Saldo Acreedor"].sum()
+
+    st.markdown("### Balanza de Comprobación")
+    st.dataframe(balanza, use_container_width=True, hide_index=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Deudor",   f"${total_deudor:,.2f}")
+    with col2:
+        st.metric("Total Acreedor", f"${total_acreedor:,.2f}")
+    if abs(total_deudor - total_acreedor) < 0.01:
+        st.success("✅ Balanza balanceada")
+    else:
+        st.error(f"❌ Desbalance en balanza: ${abs(total_deudor - total_acreedor):,.2f}")
 
 # Generate balance (balanza de comprobación)
 def generar_balanza(mayor):
@@ -325,29 +505,67 @@ def generar_estado_resultados(mayor):
         'perdida_operacion': perdida_operacion
     }
 
+def obtener_ultimo_saldo_caja():
+    # Buscamos el último asiento donde aparece la cuenta "Caja" en Debe
+    for trans in reversed(st.session_state.transacciones):
+        cuentas = trans['Cuentas'].split('\n')
+        debe    = trans['Debe'].split('\n')
+        haber   = trans['Haber'].split('\n')
+        for c, d_str, h_str in zip(cuentas, debe, haber):
+            if c == 'Caja':
+                # Convertimos a float y devolvemos
+                try:
+                    return float(d_str.replace(',', ''))
+                except:
+                    return 0.0
+    return 0.0
+
 def arqueo_caja(monto):
-    denominaciones = [
-        1000, 500, 200, 100, 50, 20,  # Billetes
-        20, 10, 5, 2, 1, 0.5  # Monedas
-    ]
-    
+    """
+    Devuelve un desglose en un único dict {denominación: cantidad},
+    garantizando al menos 1 unidad de cada denom y completando el resto greedy.
+    """
+    # Lista de todas las denominaciones, de mayor a menor
+    denom = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5]
+
+    # 1) Tomamos 1 unidad de cada denom para garantizar su presencia
+    desglose = {d: 1 for d in denom}
+    usado = sum(d for d in denom)  # suma de esa "canasta mínima"
+
+    # Si ese mínimo ya excede el monto, devolvemos solo esa canasta recortada:
+    if usado > monto:
+        # En casos extremos, devolvemos la versión greedy sin la canasta mínima
+        return arqueo_caja_greedy(monto, denom)
+
+    restante = round(monto - usado, 2)
+
+    # 2) Ahora aplicamos greedy sobre el resto
+    for d in denom:
+        # Podemos asignar cuántas piezas adicionales de 'd' caben en el resto
+        extra = int(restante // d)
+        if extra:
+            desglose[d] += extra
+            restante = round(restante - extra * d, 2)
+        # Si no queda nada, rompemos
+        if restante < 0.01:
+            break
+
+    return desglose
+
+def arqueo_caja_greedy(monto, denom):
+    """
+    Helper: si la canasta mínima excede el monto, cae aquí.
+    Simple greedy clásico sin canasta mínima.
+    """
     desglose = {}
-    monto_restante = round(monto, 2)
-    
-    for denom in sorted(denominaciones, reverse=True):
-        if monto_restante >= denom:
-            cantidad = int(monto_restante // denom)
-            desglose[denom] = cantidad
-            monto_restante = round(monto_restante - (cantidad * denom), 2)
-    
-    # Ajuste final para centavos
-    if monto_restante > 0:
-        if 0.5 in desglose:
-            desglose[0.5] += 1
-        else:
-            desglose[0.5] = 1
-        monto_restante -= 0.5
-    
+    restante = monto
+    for d in denom:
+        cnt = int(restante // d)
+        if cnt:
+            desglose[d] = cnt
+            restante = round(restante - cnt * d, 2)
+        if restante < 0.01:
+            break
     return desglose
 
 # Home page content
@@ -384,7 +602,7 @@ if page == "Inicio":
 elif page == "Libro Diario":
     st.markdown('<div class="section-header">Libro Diario</div>', unsafe_allow_html=True)
     modulo_transacciones_mejorado()
-    mostrar_libro_diario()
+    mostrar_libro_diario_mejorado()
     
     if st.session_state.transacciones:
         diario_df = pd.DataFrame(st.session_state.transacciones)
@@ -414,21 +632,42 @@ elif page == "Libro Diario":
 # Mayor y Balanza page
 elif page == "Mayor y Balanza":
     st.markdown('<div class="section-header">Libro Mayor y Balanza</div>', unsafe_allow_html=True)
-    
+
     if st.session_state.transacciones:
-        mayor = procesar_mayor()
-        balanza, total_debe, total_haber = generar_balanza(mayor)
+        # 1) Obtén el dict de saldos por cuenta:
+        mayor_dict = procesar_mayor_mejorado()
+
+        # 2) Usa ese dict para generar la balanza:
+        balanza, total_debe, total_haber = generar_balanza(mayor_dict)
         balanza_df = pd.DataFrame(balanza)
-        
+
+        # 3) Muestra ambas pestañas:
         tab1, tab2 = st.tabs(["Libro Mayor", "Balanza"])
         with tab1:
-            cuenta_seleccionada = st.selectbox("Seleccionar Cuenta", list(mayor.keys()))
-            st.write(f"**Movimientos de {cuenta_seleccionada}**")
-            # Mostrar movimientos específicos de la cuenta
+            st.subheader("Libro Mayor")
+            # Construye un DataFrame de mayor detalle si quieres,
+            # o bien muestra la tabla de saldos:
+            mayor_rows = []
+            for cuenta, sal in mayor_dict.items():
+                mayor_rows.append({
+                    "Cuenta": cuenta,
+                    "Total Debe":    sal["debe"],
+                    "Total Haber":   sal["haber"],
+                    "Saldo Deudor":  max(sal["debe"] - sal["haber"], 0),
+                    "Saldo Acreedor":max(sal["haber"] - sal["debe"], 0)
+                })
+            mayor_df = pd.DataFrame(mayor_rows)
+            st.dataframe(mayor_df, use_container_width=True, hide_index=True)
+
         with tab2:
-            st.dataframe(balanza_df, use_container_width=True)
-            st.metric("Total Deudor", f"${total_debe:,.2f}")
-            st.metric("Total Acreedor", f"${total_haber:,.2f}")
+            st.subheader("Balanza de Comprobación")
+            st.dataframe(balanza_df, use_container_width=True, hide_index=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Total Deudor",   f"${total_debe:,.2f}")
+            with col2:
+                st.metric("Total Acreedor", f"${total_haber:,.2f}")
+
     else:
         st.warning("No hay datos para mostrar")
 
@@ -436,8 +675,10 @@ elif page == "Estado de Resultados":
     st.markdown('<div class="section-header">Estado de Resultados</div>', unsafe_allow_html=True)
     
     if st.session_state.transacciones:
-        mayor = procesar_mayor()
-        estado = generar_estado_resultados(mayor)
+        # 1) Procesar el mayor para obtener el dict de saldos
+        mayor_dict = procesar_mayor_mejorado()
+        # 2) Generar cifras de estado
+        estado = generar_estado_resultados(mayor_dict)
         
         col1, col2 = st.columns(2)
         
@@ -483,30 +724,43 @@ elif page == "Estado de Resultados":
 # En la página de Arqueo de Caja
 elif page == "Arqueo de Caja":
     st.markdown('<div class="section-header">Arqueo de Caja</div>', unsafe_allow_html=True)
-    
-    monto = st.number_input("Ingrese el monto total en efectivo:", min_value=0.0, step=0.5, format="%.2f")
-    
+
+    # Monto automático vs manual (puedes reutilizar tu obtener_ultimo_saldo_caja())
+    metodo = st.radio("Selecciona método de monto:", [
+        "Ingresar manualmente",
+        "Usar último saldo de Caja"
+    ])
+    if metodo == "Usar último saldo de Caja":
+        monto = obtener_ultimo_saldo_caja()
+        st.markdown(f"**Usando último saldo de Caja:** ${monto:,.2f}")
+    else:
+        monto = st.number_input("Monto total en efectivo:", min_value=0.0, step=0.5, format="%.2f")
+
     if monto > 0:
         desglose = arqueo_caja(monto)
         
+        # Dividimos monedas (<20) y billetes (>=20)
+        monedas = {d: c for d, c in desglose.items() if d < 20}
+        billetes= {d: c for d, c in desglose.items() if d >= 20}
+
         col1, col2 = st.columns(2)
-        
         with col1:
-            st.markdown("### Desglose de Billetes")
-            for denom in [1000, 500, 200, 100, 50, 20]:
-                if denom in desglose and desglose[denom] > 0:
-                    st.write(f"{desglose[denom]} billetes de ${denom:,.2f}")
-        
+            st.markdown("### Monedas")
+            for d, c in sorted(monedas.items()):
+                st.write(f"{c} × ${d:.2f} = ${c*d:,.2f}")
+            total_m = sum(d*c for d, c in monedas.items())
+            st.markdown(f"**Total Monedas:** ${total_m:,.2f}")
         with col2:
-            st.markdown("### Desglose de Monedas")
-            for denom in [20, 10, 5, 2, 1, 0.5]:
-                if denom in desglose and desglose[denom] > 0:
-                    tipo = "monedas" if denom < 20 else "billetes"
-                    st.write(f"{desglose[denom]} {tipo} de ${denom:,.2f}")
-        
-        total_calculado = sum(denom * cant for denom, cant in desglose.items())
-        st.markdown(f"**Total verificado:** ${total_calculado:,.2f}")
-        if abs(total_calculado - monto) <= 0.05:
-            st.success("¡Arqueo correcto!")
+            st.markdown("### Billetes")
+            for d, c in sorted(billetes.items()):
+                st.write(f"{c} × ${d:.2f} = ${c*d:,.2f}")
+            total_b = sum(d*c for d, c in billetes.items())
+            st.markdown(f"**Total Billetes:** ${total_b:,.2f}")
+
+        # Verificación final
+        total_calc = total_m + total_b
+        st.markdown(f"**Total Arqueo:** ${total_calc:,.2f}")
+        if abs(total_calc - monto) < 0.01:
+            st.success("✅ Arqueo correcto, sin discrepancias y usando todas las denominaciones.")
         else:
-            st.error(f"Discrepancia: ${abs(total_calculado - monto):,.2f}")
+            st.error(f"❌ Discrepancia de ${abs(total_calc - monto):,.2f}")
