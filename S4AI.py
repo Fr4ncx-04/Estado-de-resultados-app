@@ -3,13 +3,13 @@ import pandas as pd
 from datetime import datetime
 import plotly.express as px
 
-# Configure page settings
+# configuracion de la pagina
 st.set_page_config(
     page_title="GameVerse Studios - Sistema Contable",
     layout="wide"
 )
 
-# Custom CSS to improve appearance
+# configuracion de la apariencia
 st.markdown("""
 <style>
     .title {
@@ -68,11 +68,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Application title
+# tutulo de la pagina
 st.markdown('<div class="title">GameVerse Studios</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Sistema Contable Integral</div>', unsafe_allow_html=True)
 
-# Navigation
+# navegacion
 st.sidebar.title("Navegación")
 page = st.sidebar.radio("Seleccione una opción:", 
                     ["Inicio", "Libro Diario", "Mayor y Balanza", "Estado de Resultados", "Arqueo de Caja"])
@@ -134,7 +134,7 @@ asiento_apertura = generar_asiento_contable(
     cuentas_haber=[("Capital Social", 8512990.00 + 481000.00)]  # Contrapartida automática
 )
 
-# Módulo de transacciones actualizado
+# Módulo de transacciones
 def modulo_transacciones_mejorado():
     with st.expander("Registrar Transacción", expanded=True):
         fecha = st.date_input("Fecha")
@@ -181,10 +181,8 @@ def modulo_transacciones_mejorado():
         elif tipo == "Descuento Pronto Pago Compras":
             recibido = st.number_input("Monto Bancos (10% Pronto Pago)", min_value=0.0)
             if st.button("Registrar"):
-                # recibido = total que nos devuelve el proveedor
                 neto = recibido / 1.16
                 iva  = neto * 0.16
-                # descuentos = 10% de la base original ≈ neto. Ajusta fórmula si varía.
                 descuento = recibido
                 asiento = generar_asiento_contable(
                     fecha=fecha.strftime("%d/%m/%Y"),
@@ -314,22 +312,20 @@ def registrar_compra(fecha, monto_total):
 # Ejemplo de compra de $2,320.00
 transaccion_compra = registrar_compra("10/04/2025", 2320.00)
 
-# Visualización del libro diario con formato específico
+# Visualización del libro diario
 def mostrar_libro_diario_mejorado():
-    # 1) Armamos la lista de filas
     filas = []
     total_debe = 0.0
     total_haber = 0.0
 
     for trans in st.session_state.transacciones:
         fecha = trans.get('Fecha', '')
-        # trans['Cuentas'], trans['Debe'] y trans['Haber'] son strings con saltos de línea
         cuentas = trans.get('Cuentas', '').split('\n')
         debe   = trans.get('Debe',   '').split('\n')
         haber  = trans.get('Haber',  '').split('\n')
 
         for cuenta, d_str, h_str in zip(cuentas, debe, haber):
-            # Convertimos a float (quitando comas)
+            # Convertimos a float
             try:
                 d = float(d_str.replace(",", "")) if d_str else 0.0
             except:
@@ -349,7 +345,7 @@ def mostrar_libro_diario_mejorado():
             total_debe  += d
             total_haber += h
 
-    # 2) Creamos el DataFrame
+    #Crear el DataFrame
     if filas:
         diario_df = pd.DataFrame(filas)
         st.dataframe(diario_df, use_container_width=True, hide_index=True)
@@ -357,14 +353,14 @@ def mostrar_libro_diario_mejorado():
         st.warning("No hay transacciones para mostrar en el Diario")
         return
 
-    # 3) Mostramos métricas de totales
+    #Mostrar métricas de totales
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Debe",  f"${total_debe:,.2f}")
     with col2:
         st.metric("Total Haber", f"${total_haber:,.2f}")
 
-    # 4) Balance
+    #Balance
     if abs(total_debe - total_haber) < 0.01:
         st.success("✅ Libro balanceado")
     else:
@@ -402,11 +398,7 @@ def procesar_mayor_mejorado():
     df = obtener_df_diario()
     if df.empty:
         return {}
-
-    # Agrupamos sumas de Debe/Haber por Cuenta
     grp = df.groupby("Cuenta")[["Debe", "Haber"]].sum().reset_index()
-    
-    # Construyo un dict {cuenta: {debe: x, haber: y}}
     mayor = {
         row["Cuenta"]: {"debe": row["Debe"], "haber": row["Haber"]}
         for _, row in grp.iterrows()
@@ -419,8 +411,8 @@ def mostrar_mayor_y_balanza():
     if not mayor:
         st.warning("No hay datos para Libro Mayor")
         return
-
-    # Construyo la tabla del Mayor
+    
+    #generar apariencia mayor
     mayor_rows = []
     for cuenta, sal in mayor.items():
         mayor_rows.append({
@@ -434,7 +426,7 @@ def mostrar_mayor_y_balanza():
     st.markdown("### Libro Mayor")
     st.dataframe(mayor_df, use_container_width=True, hide_index=True)
 
-    # Genero la balanza de comprobación
+    # Generar la balanza de comprobación
     balanza = mayor_df[["Cuenta", "Saldo Deudor", "Saldo Acreedor"]]
     total_deudor  = balanza["Saldo Deudor"].sum()
     total_acreedor= balanza["Saldo Acreedor"].sum()
@@ -451,7 +443,7 @@ def mostrar_mayor_y_balanza():
     else:
         st.error(f"❌ Desbalance en balanza: ${abs(total_deudor - total_acreedor):,.2f}")
 
-# Generate balance (balanza de comprobación)
+# Generar balanza de comprobación
 def generar_balanza(mayor):
     balanza = []
     total_debe = 0
@@ -506,14 +498,12 @@ def generar_estado_resultados(mayor):
     }
 
 def obtener_ultimo_saldo_caja():
-    # Buscamos el último asiento donde aparece la cuenta "Caja" en Debe
     for trans in reversed(st.session_state.transacciones):
         cuentas = trans['Cuentas'].split('\n')
         debe    = trans['Debe'].split('\n')
         haber   = trans['Haber'].split('\n')
         for c, d_str, h_str in zip(cuentas, debe, haber):
             if c == 'Caja':
-                # Convertimos a float y devolvemos
                 try:
                     return float(d_str.replace(',', ''))
                 except:
@@ -527,36 +517,24 @@ def arqueo_caja(monto):
     """
     # Lista de todas las denominaciones, de mayor a menor
     denom = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5]
-
-    # 1) Tomamos 1 unidad de cada denom para garantizar su presencia
     desglose = {d: 1 for d in denom}
-    usado = sum(d for d in denom)  # suma de esa "canasta mínima"
-
-    # Si ese mínimo ya excede el monto, devolvemos solo esa canasta recortada:
+    usado = sum(d for d in denom)  
     if usado > monto:
-        # En casos extremos, devolvemos la versión greedy sin la canasta mínima
         return arqueo_caja_greedy(monto, denom)
 
     restante = round(monto - usado, 2)
 
-    # 2) Ahora aplicamos greedy sobre el resto
     for d in denom:
-        # Podemos asignar cuántas piezas adicionales de 'd' caben en el resto
         extra = int(restante // d)
         if extra:
             desglose[d] += extra
             restante = round(restante - extra * d, 2)
-        # Si no queda nada, rompemos
         if restante < 0.01:
             break
 
     return desglose
 
 def arqueo_caja_greedy(monto, denom):
-    """
-    Helper: si la canasta mínima excede el monto, cae aquí.
-    Simple greedy clásico sin canasta mínima.
-    """
     desglose = {}
     restante = monto
     for d in denom:
@@ -568,7 +546,7 @@ def arqueo_caja_greedy(monto, denom):
             break
     return desglose
 
-# Home page content
+# Home page
 if page == "Inicio":
     st.markdown('<div class="section-header">Bienvenido al Sistema Contable de GameVersito Studios</div>', unsafe_allow_html=True)
     
@@ -634,19 +612,17 @@ elif page == "Mayor y Balanza":
     st.markdown('<div class="section-header">Libro Mayor y Balanza</div>', unsafe_allow_html=True)
 
     if st.session_state.transacciones:
-        # 1) Obtén el dict de saldos por cuenta:
+        # Obtén el dict de saldos por cuenta:
         mayor_dict = procesar_mayor_mejorado()
 
         # 2) Usa ese dict para generar la balanza:
         balanza, total_debe, total_haber = generar_balanza(mayor_dict)
         balanza_df = pd.DataFrame(balanza)
 
-        # 3) Muestra ambas pestañas:
+        # Muestra ambas pestañas:
         tab1, tab2 = st.tabs(["Libro Mayor", "Balanza"])
         with tab1:
             st.subheader("Libro Mayor")
-            # Construye un DataFrame de mayor detalle si quieres,
-            # o bien muestra la tabla de saldos:
             mayor_rows = []
             for cuenta, sal in mayor_dict.items():
                 mayor_rows.append({
@@ -675,9 +651,7 @@ elif page == "Estado de Resultados":
     st.markdown('<div class="section-header">Estado de Resultados</div>', unsafe_allow_html=True)
     
     if st.session_state.transacciones:
-        # 1) Procesar el mayor para obtener el dict de saldos
         mayor_dict = procesar_mayor_mejorado()
-        # 2) Generar cifras de estado
         estado = generar_estado_resultados(mayor_dict)
         
         col1, col2 = st.columns(2)
@@ -721,11 +695,10 @@ elif page == "Estado de Resultados":
     else:
         st.warning("No hay transacciones registradas")
 
-# En la página de Arqueo de Caja
+# Arqueo de Caja page
 elif page == "Arqueo de Caja":
     st.markdown('<div class="section-header">Arqueo de Caja</div>', unsafe_allow_html=True)
 
-    # Monto automático vs manual (puedes reutilizar tu obtener_ultimo_saldo_caja())
     metodo = st.radio("Selecciona método de monto:", [
         "Ingresar manualmente",
         "Usar último saldo de Caja"
@@ -738,8 +711,6 @@ elif page == "Arqueo de Caja":
 
     if monto > 0:
         desglose = arqueo_caja(monto)
-        
-        # Dividimos monedas (<20) y billetes (>=20)
         monedas = {d: c for d, c in desglose.items() if d < 20}
         billetes= {d: c for d, c in desglose.items() if d >= 20}
 
